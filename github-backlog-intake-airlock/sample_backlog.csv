@@ -1,0 +1,7 @@
+status,title,body
+new,Document local setup,Add a concise setup guide for first-time contributors.
+ready,Add retry regression coverage,Cover bounded read retries and ambiguous write failures.
+new,Document local setup,Add a concise setup guide for first-time contributors.
+new,,This malformed row must fail validation and create no approval card.
+review,Review release checklist,Confirm the release checklist before opening a new issue.
+done,Retired backlog item,This row is terminal and should not create a preview.

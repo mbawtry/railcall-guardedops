@@ -1,0 +1,81 @@
+{
+  "id": "guardedops/github-backlog-intake-airlock",
+  "name": "github_backlog_intake_airlock",
+  "title": "GitHub Backlog Intake Airlock",
+  "description": "GitHub Backlog Intake Airlock is a six-node RailCall workflow for engineering leads who need to turn a supplied CSV backlog into governed GitHub issues without silently duplicating prior work. parse_csv handles quoted CSV locally, validates the required header, preserves source-row evidence, and accepts optional prior_replay_keys from a previous signed receipt. validate admits only new/ready rows with GitHub-safe title and body lengths while separating failures, review holds, and terminal rows. dedup normalizes title/body pairs, collapses same-batch duplicates, and assigns each candidate a deterministic versioned replay key. replay_guard suppresses keys already recorded by an earlier successful run. create_issue fans out only over eligible rows through github.create_issue; RailCall approval is required before any GitHub write. reconcile fans in the provider results, issue numbers, landed keys, suppressed keys, and the exact next_prior_replay_keys list for the next run. All parsing and replay logic is pure: no files, sockets, credentials, clock, or hidden provider lookup. The sample produces two eligible previews, one same-batch duplicate, one validation failure, one review hold, and one terminal row. A second run using the first receipt's next_prior_replay_keys produces zero GitHub effects. contest:2026Q3",
+  "category": "Engineering",
+  "version": "1.3.0",
+  "video_url": "https://youtu.be/Mc67wx4mrNM",
+  "trigger": {
+    "type": "manual",
+    "input": "csv_text"
+  },
+  "providers": [
+    "github"
+  ],
+  "approval": "require_human",
+  "irreversible": false,
+  "context": {
+    "csv_text": "status,title,body\nnew,Document local setup,Add a concise setup guide for first-time contributors.\nready,Add retry regression coverage,Cover bounded read retries and ambiguous write failures.\nnew,Document local setup,Add a concise setup guide for first-time contributors.\nnew,,This malformed row must fail validation and create no approval card.\nreview,Review release checklist,Confirm the release checklist before opening a new issue.\ndone,Retired backlog item,This row is terminal and should not create a preview.",
+    "prior_replay_keys": []
+  },
+  "nodes": [
+    {
+      "id": "parse_csv",
+      "type": "transform",
+      "input_from": {
+        "csv_text": "{{ctx.csv_text}}",
+        "prior_replay_keys": "{{ctx.prior_replay_keys}}"
+      },
+      "code": "payload = input if isinstance(input, dict) else {'csv_text': input, 'prior_replay_keys': []}\ntext = str(payload.get('csv_text') or '')\nnormalized = text.replace('\\r\\n', '\\n').replace('\\r', '\\n')\nprior_raw = payload.get('prior_replay_keys', [])\nprior_replay_keys = []\nprior_key_errors = []\nif not isinstance(prior_raw, list):\n    prior_key_errors.append({'reason': 'prior_replay_keys_must_be_a_list'})\nelse:\n    seen_prior = set()\n    for index, value in enumerate(prior_raw):\n        key = str(value).strip()\n        if not key.startswith('rcbk1:'):\n            prior_key_errors.append({'index': index, 'reason': 'unsupported_replay_key'})\n        elif key not in seen_prior:\n            seen_prior.add(key)\n            prior_replay_keys.append(key)\ndef split_csv(line):\n    values = []\n    current = ''\n    quoted = False\n    i = 0\n    while i < len(line):\n        char = line[i]\n        if char == '\"':\n            if quoted and i + 1 < len(line) and line[i + 1] == '\"':\n                current += '\"'\n                i += 1\n            else:\n                quoted = not quoted\n        elif char == ',' and not quoted:\n            values.append(current.strip())\n            current = ''\n        else:\n            current += char\n        i += 1\n    values.append(current.strip())\n    return {'values': values, 'balanced': not quoted}\ncontent_lines = [(number, line) for number, line in enumerate(normalized.split('\\n'), 1) if line.strip()]\nrows = []\nparse_errors = []\nheaders = []\nif content_lines:\n    header_number, header_line = content_lines[0]\n    header_result = split_csv(header_line)\n    headers = [value.strip().lower() for value in header_result['values']]\n    if not header_result['balanced']:\n        parse_errors.append({'source_row': header_number, 'reason': 'unclosed_quote'})\n    missing = [name for name in ('status', 'title', 'body') if name not in headers]\n    if missing:\n        parse_errors.append({'source_row': header_number, 'reason': 'missing_required_headers', 'headers': missing})\n    if len(set(headers)) != len(headers):\n        parse_errors.append({'source_row': header_number, 'reason': 'duplicate_header'})\n    header_ok = header_result['balanced'] and not missing and len(set(headers)) == len(headers)\n    if header_ok:\n        for row_number, line in content_lines[1:]:\n            result = split_csv(line)\n            values = result['values']\n            if not result['balanced']:\n                parse_errors.append({'source_row': row_number, 'reason': 'unclosed_quote'})\n            elif len(values) != len(headers):\n                parse_errors.append({'source_row': row_number, 'reason': 'column_count_mismatch'})\n            else:\n                row = dict(zip(headers, values))\n                row['source_row'] = row_number\n                rows.append(row)\nelse:\n    parse_errors.append({'source_row': 1, 'reason': 'empty_csv'})\noutput = {'rows': rows, 'parsed_count': len(rows), 'parse_errors': parse_errors, 'prior_replay_keys': prior_replay_keys, 'prior_key_errors': prior_key_errors}"
+    },
+    {
+      "id": "validate",
+      "type": "transform",
+      "input_from": "{{nodes.parse_csv.output}}",
+      "code": "payload = input if isinstance(input, dict) else {}\nrows = payload.get('rows', []) if isinstance(payload.get('rows', []), list) else []\nvalid_rows = []\ninvalid_rows = []\nheld_rows = []\nterminal_rows = []\nfor row in rows:\n    status = str(row.get('status', '')).strip().lower()\n    title = str(row.get('title', '')).strip()\n    body = str(row.get('body', '')).strip()\n    item = {'source_row': row.get('source_row'), 'status': status, 'title': title, 'body': body}\n    if status in ('new', 'ready'):\n        if not title:\n            invalid_rows.append({'source_row': row.get('source_row'), 'reason': 'missing_title'})\n        elif len(title) > 256:\n            invalid_rows.append({'source_row': row.get('source_row'), 'reason': 'title_too_long'})\n        elif len(body) > 65536:\n            invalid_rows.append({'source_row': row.get('source_row'), 'reason': 'body_too_long'})\n        else:\n            valid_rows.append(item)\n    elif status == 'review':\n        held_rows.append(item)\n    elif status in ('done', 'closed'):\n        terminal_rows.append(item)\n    else:\n        invalid_rows.append({'source_row': row.get('source_row'), 'reason': 'unsupported_status'})\noutput = {'valid_rows': valid_rows, 'invalid_rows': invalid_rows, 'held_rows': held_rows, 'terminal_rows': terminal_rows, 'input_count': len(rows), 'parse_errors': payload.get('parse_errors', []), 'prior_replay_keys': payload.get('prior_replay_keys', []), 'prior_key_errors': payload.get('prior_key_errors', [])}"
+    },
+    {
+      "id": "dedup",
+      "type": "transform",
+      "input_from": "{{nodes.validate.output}}",
+      "code": "payload = input if isinstance(input, dict) else {}\nrows = payload.get('valid_rows', []) if isinstance(payload.get('valid_rows', []), list) else []\ndef make_replay_key(value):\n    mask = 18446744073709551615\n    h1 = 1469598103934665603\n    h2 = 7809847782465536322\n    for char in value:\n        number = ord(char)\n        h1 = ((h1 ^ number) * 1099511628211) & mask\n        h2 = ((h2 + number) * 14029467366897019727) & mask\n        h2 = ((h2 << 13) | (h2 >> 51)) & mask\n    return 'rcbk1:' + str(h1) + ':' + str(h2)\nseen = {}\ncandidate_rows = []\nduplicates = []\nkey_collisions = []\nfor row in rows:\n    normalized_title = re.sub(r'\\s+', ' ', row.get('title', '')).strip()\n    normalized_body = re.sub(r'\\s+', ' ', row.get('body', '')).strip()\n    canonical = normalized_title.lower() + '\\n' + normalized_body\n    replay_key = make_replay_key(canonical)\n    if replay_key in seen:\n        if seen[replay_key]['canonical'] == canonical:\n            duplicates.append({'source_row': row.get('source_row'), 'duplicate_of': seen[replay_key]['source_row'], 'replay_key': replay_key})\n        else:\n            key_collisions.append({'source_row': row.get('source_row'), 'reason': 'replay_key_collision'})\n    else:\n        seen[replay_key] = {'canonical': canonical, 'source_row': row.get('source_row')}\n        candidate_rows.append({'source_row': row.get('source_row'), 'title': normalized_title, 'body': row.get('body', '').strip(), 'replay_key': replay_key})\noutput = {'candidate_rows': candidate_rows, 'duplicates': duplicates, 'key_collisions': key_collisions, 'candidate_count': len(candidate_rows), 'duplicate_count': len(duplicates), 'prior_replay_keys': payload.get('prior_replay_keys', []), 'invalid_rows': payload.get('invalid_rows', []), 'held_rows': payload.get('held_rows', []), 'terminal_rows': payload.get('terminal_rows', []), 'parse_errors': payload.get('parse_errors', []), 'prior_key_errors': payload.get('prior_key_errors', [])}"
+    },
+    {
+      "id": "replay_guard",
+      "type": "transform",
+      "input_from": "{{nodes.dedup.output}}",
+      "code": "payload = input if isinstance(input, dict) else {}\nrows = payload.get('candidate_rows', []) if isinstance(payload.get('candidate_rows', []), list) else []\nprior = set(payload.get('prior_replay_keys', []))\neligible = []\nfor row in rows:\n    if row.get('replay_key') not in prior:\n        eligible.append(row)\noutput = eligible"
+    },
+    {
+      "id": "create_issue",
+      "type": "effect",
+      "action_id": "github.create_issue",
+      "provider": "github",
+      "approval": "require_human",
+      "risk": "medium",
+      "for_each": "{{nodes.replay_guard.output}}",
+      "args": {
+        "title": "{{ctx.item.title}}",
+        "body": "{{ctx.item.body}}"
+      }
+    },
+    {
+      "id": "reconcile",
+      "type": "merge",
+      "inputs": [
+        "dedup",
+        "replay_guard",
+        "create_issue"
+      ],
+      "code": "merged = input if isinstance(input, dict) else {}\ndedup_node = merged.get('dedup') if isinstance(merged.get('dedup'), dict) else {}\ndedup = dedup_node.get('output') if isinstance(dedup_node.get('output'), dict) else {}\neligible_node = merged.get('replay_guard') if isinstance(merged.get('replay_guard'), dict) else {}\neligible = eligible_node.get('output') if isinstance(eligible_node.get('output'), list) else []\ncreated = merged.get('create_issue') if isinstance(merged.get('create_issue'), dict) else {}\nif isinstance(created.get('items'), list):\n    items = created.get('items')\nelif eligible:\n    items = [created]\nelse:\n    items = []\nprior = dedup.get('prior_replay_keys', []) if isinstance(dedup.get('prior_replay_keys', []), list) else []\nprior_set = set(prior)\nreplay_suppressed = [row for row in dedup.get('candidate_rows', []) if row.get('replay_key') in prior_set]\naudit = []\nlanded = []\nissue_numbers = []\nfailed = 0\nfor index, row in enumerate(eligible):\n    result = items[index] if index < len(items) and isinstance(items[index], dict) else {}\n    success = bool(result) and result.get('ok') is not False and not result.get('error')\n    number = result.get('number')\n    if success:\n        landed.append(row.get('replay_key'))\n        if number is not None:\n            issue_numbers.append(number)\n    else:\n        failed += 1\n    audit.append({'source_row': row.get('source_row'), 'replay_key': row.get('replay_key'), 'status': 'succeeded' if success else 'failed', 'issue_number': number})\nnext_keys = []\nfor key in prior + landed:\n    if key not in next_keys:\n        next_keys.append(key)\noutput = {'candidate_count': dedup.get('candidate_count', 0), 'eligible_count': len(eligible), 'replay_suppressed_count': len(replay_suppressed), 'replay_suppressed': [{'source_row': row.get('source_row'), 'replay_key': row.get('replay_key')} for row in replay_suppressed], 'attempted': len(items), 'succeeded': len(landed), 'failed': failed, 'issue_numbers': issue_numbers, 'landed_replay_keys': landed, 'next_prior_replay_keys': next_keys, 'audit': audit, 'result_count_matches_expected': len(items) == len(eligible), 'external_writes_require_prior_approval': True, 'automatic_provider_lookup': False}"
+    }
+  ],
+  "outputs": [
+    "A signed plan and receipt spanning all six nodes",
+    "One approval-bound github.create_issue effect per eligible row",
+    "Source-row evidence for parse, validation, duplicate, collision, and replay decisions",
+    "Issue numbers, landed replay keys, and next_prior_replay_keys for the next run"
+  ],
+  "contest_tag": "contest:2026Q3"
+}
