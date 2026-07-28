@@ -1,0 +1,1242 @@
+{
+  "id": "guardedops/github-operations",
+  "name": "GitHub Operations Airlock - governed issue triage and pull-request review",
+  "version": "1.1.2",
+  "description": "A 31-command, governance-first GitHub REST module for issue triage, pull-request review, Actions, releases, files, branches, protection, merges, and deployments. Public reads need no credential; private reads and every write resolve a fine-grained token only from RailCall's local vault. Every mutation is previewed, approval-gated, receipted, and attributable. Command examples: github.get_repository {\"owner\":\"octocat\",\"repo\":\"Hello-World\"}; github.list_issues {\"state\":\"open\"}; github.get_issue {\"issue_number\":12}; github.search_issues {\"query\":\"startup regression\"}; github.create_issue {\"title\":\"Document retries\"}; github.update_issue {\"issue_number\":12,\"state\":\"closed\"}; github.add_issue_comment {\"issue_number\":12,\"body\":\"Verified\"}; github.list_pull_requests {\"base\":\"main\"}; github.get_pull_request {\"pull_number\":42}; github.request_pull_request_reviewers {\"pull_number\":42,\"reviewers\":[\"octocat\"]}; github.list_workflow_runs {\"status\":\"failure\"}; github.dispatch_workflow {\"workflow_id\":\"ci.yml\",\"ref\":\"main\"}; github.cancel_workflow_run {\"run_id\":123}; github.list_workflow_run_artifacts {\"run_id\":123}; github.list_releases {\"limit\":20}; github.create_release {\"tag_name\":\"v1.1.0\",\"draft\":true}; github.update_release {\"release_id\":9,\"draft\":false}; github.delete_release {\"release_id\":9}; github.get_file {\"path\":\"README.md\"}; github.put_file {\"path\":\"docs/runbook.md\",\"message\":\"Add runbook\",\"content_base64\":\"SGVsbG8=\"}; github.delete_file {\"path\":\"docs/old.md\",\"message\":\"Remove\",\"sha\":\"0123456789abcdef0123456789abcdef01234567\"}; github.list_branches {\"protected\":true}; github.create_branch {\"branch\":\"release/v1.1\",\"sha\":\"0123456789abcdef0123456789abcdef01234567\"}; github.delete_branch {\"branch\":\"release/old\"}; github.get_branch_protection {\"branch\":\"main\"}; github.update_branch_protection {\"branch\":\"main\",\"protection\":{\"required_status_checks\":null,\"enforce_admins\":true,\"required_pull_request_reviews\":null,\"restrictions\":null}}; github.merge_pull_request {\"pull_number\":42,\"merge_method\":\"squash\"}; github.create_pull_request_review {\"pull_number\":42,\"event\":\"approve\"}; github.list_deployments {\"environment\":\"production\"}; github.create_deployment {\"ref\":\"main\",\"environment\":\"staging\"}; github.create_deployment_status {\"deployment_id\":88,\"state\":\"success\"}. Reads use bounded retries and allowlisted output. Writes are never retried after ambiguous transport failure. Destructive or policy-changing operations are high risk. contest:2026Q3",
+  "provider": "github",
+  "license_required": false,
+  "homepage": "https://revenue-recovery-workflow-lab.mbawtry.chatgpt.site/railcall/github-operations",
+  "tests_url": "https://revenue-recovery-workflow-lab.mbawtry.chatgpt.site/railcall/github-operations#validation",
+  "video_url": "https://youtu.be/m5FqTpumXUE",
+  "auth": {
+    "type": "api_key",
+    "vault_provider": "github",
+    "secret_field": "GITHUB_TOKEN",
+    "docs": "https://docs.github.com/en/authentication/keeping-your-account-and-data-secure/managing-your-personal-access-tokens"
+  },
+  "commands": [
+    {
+      "id": "github.get_repository",
+      "title": "Read repository metadata and issue settings",
+      "provider": "github",
+      "risk": "low",
+      "mode": "read",
+      "requires": [],
+      "preview": true,
+      "receipt_required": true,
+      "input_schema": {
+        "owner": {
+          "type": "string",
+          "required": false
+        },
+        "repo": {
+          "type": "string",
+          "required": false
+        }
+      },
+      "output_schema": {
+        "repository": "object",
+        "rate_limit": "object"
+      }
+    },
+    {
+      "id": "github.list_issues",
+      "title": "List repository issues without mixing in pull requests",
+      "provider": "github",
+      "risk": "low",
+      "mode": "read",
+      "requires": [],
+      "preview": true,
+      "receipt_required": true,
+      "input_schema": {
+        "owner": {
+          "type": "string",
+          "required": false
+        },
+        "repo": {
+          "type": "string",
+          "required": false
+        },
+        "state": {
+          "type": "string",
+          "required": false
+        },
+        "labels": {
+          "type": "array",
+          "required": false
+        },
+        "assignee": {
+          "type": "string",
+          "required": false
+        },
+        "limit": {
+          "type": "number",
+          "required": false
+        }
+      },
+      "output_schema": {
+        "issues": "array",
+        "count": "number",
+        "rate_limit": "object"
+      }
+    },
+    {
+      "id": "github.get_issue",
+      "title": "Read one issue with bounded body and assignment details",
+      "provider": "github",
+      "risk": "low",
+      "mode": "read",
+      "requires": [],
+      "preview": true,
+      "receipt_required": true,
+      "input_schema": {
+        "owner": {
+          "type": "string",
+          "required": false
+        },
+        "repo": {
+          "type": "string",
+          "required": false
+        },
+        "issue_number": {
+          "type": "number",
+          "required": true
+        }
+      },
+      "output_schema": {
+        "issue": "object",
+        "rate_limit": "object"
+      }
+    },
+    {
+      "id": "github.search_issues",
+      "title": "Search issues inside one repository",
+      "provider": "github",
+      "risk": "low",
+      "mode": "read",
+      "requires": [],
+      "preview": true,
+      "receipt_required": true,
+      "input_schema": {
+        "owner": {
+          "type": "string",
+          "required": false
+        },
+        "repo": {
+          "type": "string",
+          "required": false
+        },
+        "query": {
+          "type": "string",
+          "required": true
+        },
+        "state": {
+          "type": "string",
+          "required": false
+        },
+        "limit": {
+          "type": "number",
+          "required": false
+        }
+      },
+      "output_schema": {
+        "issues": "array",
+        "count": "number",
+        "total_count": "number",
+        "rate_limit": "object"
+      }
+    },
+    {
+      "id": "github.create_issue",
+      "title": "Create a GitHub issue after operator approval",
+      "provider": "github",
+      "risk": "medium",
+      "mode": "write_requires_approval",
+      "requires": [
+        "GITHUB_TOKEN"
+      ],
+      "preview": true,
+      "receipt_required": true,
+      "input_schema": {
+        "owner": {
+          "type": "string",
+          "required": false
+        },
+        "repo": {
+          "type": "string",
+          "required": false
+        },
+        "title": {
+          "type": "string",
+          "required": true
+        },
+        "body": {
+          "type": "string",
+          "required": false
+        },
+        "labels": {
+          "type": "array",
+          "required": false
+        },
+        "assignees": {
+          "type": "array",
+          "required": false
+        }
+      },
+      "output_schema": {
+        "issue": "object",
+        "http_status": "number",
+        "rate_limit": "object"
+      }
+    },
+    {
+      "id": "github.update_issue",
+      "title": "Update issue fields or state after operator approval",
+      "provider": "github",
+      "risk": "medium",
+      "mode": "write_requires_approval",
+      "requires": [
+        "GITHUB_TOKEN"
+      ],
+      "preview": true,
+      "receipt_required": true,
+      "input_schema": {
+        "owner": {
+          "type": "string",
+          "required": false
+        },
+        "repo": {
+          "type": "string",
+          "required": false
+        },
+        "issue_number": {
+          "type": "number",
+          "required": true
+        },
+        "title": {
+          "type": "string",
+          "required": false
+        },
+        "body": {
+          "type": "string",
+          "required": false
+        },
+        "state": {
+          "type": "string",
+          "required": false
+        },
+        "state_reason": {
+          "type": "string",
+          "required": false
+        },
+        "labels": {
+          "type": "array",
+          "required": false
+        },
+        "assignees": {
+          "type": "array",
+          "required": false
+        }
+      },
+      "output_schema": {
+        "issue": "object",
+        "http_status": "number",
+        "rate_limit": "object"
+      }
+    },
+    {
+      "id": "github.add_issue_comment",
+      "title": "Add a governed comment to an issue or pull request",
+      "provider": "github",
+      "risk": "medium",
+      "mode": "write_requires_approval",
+      "requires": [
+        "GITHUB_TOKEN"
+      ],
+      "preview": true,
+      "receipt_required": true,
+      "input_schema": {
+        "owner": {
+          "type": "string",
+          "required": false
+        },
+        "repo": {
+          "type": "string",
+          "required": false
+        },
+        "issue_number": {
+          "type": "number",
+          "required": true
+        },
+        "body": {
+          "type": "string",
+          "required": true
+        }
+      },
+      "output_schema": {
+        "comment": "object",
+        "http_status": "number",
+        "rate_limit": "object"
+      }
+    },
+    {
+      "id": "github.list_pull_requests",
+      "title": "List repository pull requests",
+      "provider": "github",
+      "risk": "low",
+      "mode": "read",
+      "requires": [],
+      "preview": true,
+      "receipt_required": true,
+      "input_schema": {
+        "owner": {
+          "type": "string",
+          "required": false
+        },
+        "repo": {
+          "type": "string",
+          "required": false
+        },
+        "state": {
+          "type": "string",
+          "required": false
+        },
+        "base": {
+          "type": "string",
+          "required": false
+        },
+        "limit": {
+          "type": "number",
+          "required": false
+        }
+      },
+      "output_schema": {
+        "pull_requests": "array",
+        "count": "number",
+        "rate_limit": "object"
+      }
+    },
+    {
+      "id": "github.get_pull_request",
+      "title": "Read pull-request status, change counts, and reviewers",
+      "provider": "github",
+      "risk": "low",
+      "mode": "read",
+      "requires": [],
+      "preview": true,
+      "receipt_required": true,
+      "input_schema": {
+        "owner": {
+          "type": "string",
+          "required": false
+        },
+        "repo": {
+          "type": "string",
+          "required": false
+        },
+        "pull_number": {
+          "type": "number",
+          "required": true
+        }
+      },
+      "output_schema": {
+        "pull_request": "object",
+        "rate_limit": "object"
+      }
+    },
+    {
+      "id": "github.request_pull_request_reviewers",
+      "title": "Request users or teams to review a pull request",
+      "provider": "github",
+      "risk": "medium",
+      "mode": "write_requires_approval",
+      "requires": [
+        "GITHUB_TOKEN"
+      ],
+      "preview": true,
+      "receipt_required": true,
+      "input_schema": {
+        "owner": {
+          "type": "string",
+          "required": false
+        },
+        "repo": {
+          "type": "string",
+          "required": false
+        },
+        "pull_number": {
+          "type": "number",
+          "required": true
+        },
+        "reviewers": {
+          "type": "array",
+          "required": false
+        },
+        "team_reviewers": {
+          "type": "array",
+          "required": false
+        }
+      },
+      "output_schema": {
+        "requested_reviewers": "object",
+        "http_status": "number",
+        "rate_limit": "object"
+      }
+    },
+    {
+      "id": "github.list_workflow_runs",
+      "title": "List bounded GitHub Actions workflow runs",
+      "provider": "github",
+      "risk": "low",
+      "mode": "read",
+      "requires": [],
+      "preview": true,
+      "receipt_required": true,
+      "input_schema": {
+        "owner": {
+          "type": "string",
+          "required": false
+        },
+        "repo": {
+          "type": "string",
+          "required": false
+        },
+        "branch": {
+          "type": "string",
+          "required": false
+        },
+        "status": {
+          "type": "string",
+          "required": false
+        },
+        "event": {
+          "type": "string",
+          "required": false
+        },
+        "limit": {
+          "type": "number",
+          "required": false
+        }
+      },
+      "output_schema": {
+        "workflow_runs": "array",
+        "count": "number",
+        "total_count": "number",
+        "rate_limit": "object"
+      }
+    },
+    {
+      "id": "github.dispatch_workflow",
+      "title": "Dispatch a workflow after operator approval",
+      "provider": "github",
+      "risk": "medium",
+      "mode": "write_requires_approval",
+      "requires": [
+        "GITHUB_TOKEN"
+      ],
+      "preview": true,
+      "receipt_required": true,
+      "input_schema": {
+        "owner": {
+          "type": "string",
+          "required": false
+        },
+        "repo": {
+          "type": "string",
+          "required": false
+        },
+        "workflow_id": {
+          "type": "string",
+          "required": true
+        },
+        "ref": {
+          "type": "string",
+          "required": true
+        },
+        "inputs": {
+          "type": "object",
+          "required": false
+        }
+      },
+      "output_schema": {
+        "workflow_id": "string",
+        "ref": "string",
+        "http_status": "number",
+        "rate_limit": "object"
+      }
+    },
+    {
+      "id": "github.cancel_workflow_run",
+      "title": "Cancel a GitHub Actions run after approval",
+      "provider": "github",
+      "risk": "medium",
+      "mode": "write_requires_approval",
+      "requires": [
+        "GITHUB_TOKEN"
+      ],
+      "preview": true,
+      "receipt_required": true,
+      "input_schema": {
+        "owner": {
+          "type": "string",
+          "required": false
+        },
+        "repo": {
+          "type": "string",
+          "required": false
+        },
+        "run_id": {
+          "type": "number",
+          "required": true
+        }
+      },
+      "output_schema": {
+        "run_id": "number",
+        "http_status": "number",
+        "rate_limit": "object"
+      }
+    },
+    {
+      "id": "github.list_workflow_run_artifacts",
+      "title": "List artifacts for one workflow run",
+      "provider": "github",
+      "risk": "low",
+      "mode": "read",
+      "requires": [],
+      "preview": true,
+      "receipt_required": true,
+      "input_schema": {
+        "owner": {
+          "type": "string",
+          "required": false
+        },
+        "repo": {
+          "type": "string",
+          "required": false
+        },
+        "run_id": {
+          "type": "number",
+          "required": true
+        },
+        "limit": {
+          "type": "number",
+          "required": false
+        }
+      },
+      "output_schema": {
+        "artifacts": "array",
+        "count": "number",
+        "total_count": "number",
+        "rate_limit": "object"
+      }
+    },
+    {
+      "id": "github.list_releases",
+      "title": "List repository releases",
+      "provider": "github",
+      "risk": "low",
+      "mode": "read",
+      "requires": [],
+      "preview": true,
+      "receipt_required": true,
+      "input_schema": {
+        "owner": {
+          "type": "string",
+          "required": false
+        },
+        "repo": {
+          "type": "string",
+          "required": false
+        },
+        "limit": {
+          "type": "number",
+          "required": false
+        }
+      },
+      "output_schema": {
+        "releases": "array",
+        "count": "number",
+        "rate_limit": "object"
+      }
+    },
+    {
+      "id": "github.create_release",
+      "title": "Create a draft or published release after approval",
+      "provider": "github",
+      "risk": "medium",
+      "mode": "write_requires_approval",
+      "requires": [
+        "GITHUB_TOKEN"
+      ],
+      "preview": true,
+      "receipt_required": true,
+      "input_schema": {
+        "owner": {
+          "type": "string",
+          "required": false
+        },
+        "repo": {
+          "type": "string",
+          "required": false
+        },
+        "tag_name": {
+          "type": "string",
+          "required": true
+        },
+        "target_commitish": {
+          "type": "string",
+          "required": false
+        },
+        "name": {
+          "type": "string",
+          "required": false
+        },
+        "body": {
+          "type": "string",
+          "required": false
+        },
+        "draft": {
+          "type": "boolean",
+          "required": false
+        },
+        "prerelease": {
+          "type": "boolean",
+          "required": false
+        },
+        "generate_release_notes": {
+          "type": "boolean",
+          "required": false
+        }
+      },
+      "output_schema": {
+        "release": "object",
+        "http_status": "number",
+        "rate_limit": "object"
+      }
+    },
+    {
+      "id": "github.update_release",
+      "title": "Publish or update a release after approval",
+      "provider": "github",
+      "risk": "medium",
+      "mode": "write_requires_approval",
+      "requires": [
+        "GITHUB_TOKEN"
+      ],
+      "preview": true,
+      "receipt_required": true,
+      "input_schema": {
+        "owner": {
+          "type": "string",
+          "required": false
+        },
+        "repo": {
+          "type": "string",
+          "required": false
+        },
+        "release_id": {
+          "type": "number",
+          "required": true
+        },
+        "tag_name": {
+          "type": "string",
+          "required": false
+        },
+        "target_commitish": {
+          "type": "string",
+          "required": false
+        },
+        "name": {
+          "type": "string",
+          "required": false
+        },
+        "body": {
+          "type": "string",
+          "required": false
+        },
+        "draft": {
+          "type": "boolean",
+          "required": false
+        },
+        "prerelease": {
+          "type": "boolean",
+          "required": false
+        },
+        "make_latest": {
+          "type": "string",
+          "required": false
+        }
+      },
+      "output_schema": {
+        "release": "object",
+        "http_status": "number",
+        "rate_limit": "object"
+      }
+    },
+    {
+      "id": "github.delete_release",
+      "title": "Delete a release after high-risk approval",
+      "provider": "github",
+      "risk": "high",
+      "mode": "write_requires_approval",
+      "requires": [
+        "GITHUB_TOKEN"
+      ],
+      "preview": true,
+      "receipt_required": true,
+      "input_schema": {
+        "owner": {
+          "type": "string",
+          "required": false
+        },
+        "repo": {
+          "type": "string",
+          "required": false
+        },
+        "release_id": {
+          "type": "number",
+          "required": true
+        }
+      },
+      "output_schema": {
+        "deleted_release_id": "number",
+        "http_status": "number",
+        "rate_limit": "object"
+      }
+    },
+    {
+      "id": "github.get_file",
+      "title": "Read one repository file with bounded output",
+      "provider": "github",
+      "risk": "low",
+      "mode": "read",
+      "requires": [],
+      "preview": true,
+      "receipt_required": true,
+      "input_schema": {
+        "owner": {
+          "type": "string",
+          "required": false
+        },
+        "repo": {
+          "type": "string",
+          "required": false
+        },
+        "path": {
+          "type": "string",
+          "required": true
+        },
+        "ref": {
+          "type": "string",
+          "required": false
+        }
+      },
+      "output_schema": {
+        "file": "object",
+        "rate_limit": "object"
+      }
+    },
+    {
+      "id": "github.put_file",
+      "title": "Create or update a repository file after approval",
+      "provider": "github",
+      "risk": "high",
+      "mode": "write_requires_approval",
+      "requires": [
+        "GITHUB_TOKEN"
+      ],
+      "preview": true,
+      "receipt_required": true,
+      "input_schema": {
+        "owner": {
+          "type": "string",
+          "required": false
+        },
+        "repo": {
+          "type": "string",
+          "required": false
+        },
+        "path": {
+          "type": "string",
+          "required": true
+        },
+        "message": {
+          "type": "string",
+          "required": true
+        },
+        "content_base64": {
+          "type": "string",
+          "required": true
+        },
+        "sha": {
+          "type": "string",
+          "required": false
+        },
+        "branch": {
+          "type": "string",
+          "required": false
+        }
+      },
+      "output_schema": {
+        "content": "object",
+        "commit": "object",
+        "http_status": "number",
+        "rate_limit": "object"
+      }
+    },
+    {
+      "id": "github.delete_file",
+      "title": "Delete a repository file after high-risk approval",
+      "provider": "github",
+      "risk": "high",
+      "mode": "write_requires_approval",
+      "requires": [
+        "GITHUB_TOKEN"
+      ],
+      "preview": true,
+      "receipt_required": true,
+      "input_schema": {
+        "owner": {
+          "type": "string",
+          "required": false
+        },
+        "repo": {
+          "type": "string",
+          "required": false
+        },
+        "path": {
+          "type": "string",
+          "required": true
+        },
+        "message": {
+          "type": "string",
+          "required": true
+        },
+        "sha": {
+          "type": "string",
+          "required": true
+        },
+        "branch": {
+          "type": "string",
+          "required": false
+        }
+      },
+      "output_schema": {
+        "deleted_path": "string",
+        "commit": "object",
+        "http_status": "number",
+        "rate_limit": "object"
+      }
+    },
+    {
+      "id": "github.list_branches",
+      "title": "List repository branches and protection state",
+      "provider": "github",
+      "risk": "low",
+      "mode": "read",
+      "requires": [],
+      "preview": true,
+      "receipt_required": true,
+      "input_schema": {
+        "owner": {
+          "type": "string",
+          "required": false
+        },
+        "repo": {
+          "type": "string",
+          "required": false
+        },
+        "protected": {
+          "type": "boolean",
+          "required": false
+        },
+        "limit": {
+          "type": "number",
+          "required": false
+        }
+      },
+      "output_schema": {
+        "branches": "array",
+        "count": "number",
+        "rate_limit": "object"
+      }
+    },
+    {
+      "id": "github.create_branch",
+      "title": "Create a branch reference after approval",
+      "provider": "github",
+      "risk": "medium",
+      "mode": "write_requires_approval",
+      "requires": [
+        "GITHUB_TOKEN"
+      ],
+      "preview": true,
+      "receipt_required": true,
+      "input_schema": {
+        "owner": {
+          "type": "string",
+          "required": false
+        },
+        "repo": {
+          "type": "string",
+          "required": false
+        },
+        "branch": {
+          "type": "string",
+          "required": true
+        },
+        "sha": {
+          "type": "string",
+          "required": true
+        }
+      },
+      "output_schema": {
+        "branch": "string",
+        "ref": "string",
+        "sha": "string",
+        "http_status": "number",
+        "rate_limit": "object"
+      }
+    },
+    {
+      "id": "github.delete_branch",
+      "title": "Delete a branch reference after high-risk approval",
+      "provider": "github",
+      "risk": "high",
+      "mode": "write_requires_approval",
+      "requires": [
+        "GITHUB_TOKEN"
+      ],
+      "preview": true,
+      "receipt_required": true,
+      "input_schema": {
+        "owner": {
+          "type": "string",
+          "required": false
+        },
+        "repo": {
+          "type": "string",
+          "required": false
+        },
+        "branch": {
+          "type": "string",
+          "required": true
+        }
+      },
+      "output_schema": {
+        "deleted_branch": "string",
+        "http_status": "number",
+        "rate_limit": "object"
+      }
+    },
+    {
+      "id": "github.get_branch_protection",
+      "title": "Read complete branch-protection settings",
+      "provider": "github",
+      "risk": "low",
+      "mode": "read",
+      "requires": [],
+      "preview": true,
+      "receipt_required": true,
+      "input_schema": {
+        "owner": {
+          "type": "string",
+          "required": false
+        },
+        "repo": {
+          "type": "string",
+          "required": false
+        },
+        "branch": {
+          "type": "string",
+          "required": true
+        }
+      },
+      "output_schema": {
+        "branch": "string",
+        "protection": "object",
+        "rate_limit": "object"
+      }
+    },
+    {
+      "id": "github.update_branch_protection",
+      "title": "Replace branch-protection settings after high-risk approval",
+      "provider": "github",
+      "risk": "high",
+      "mode": "write_requires_approval",
+      "requires": [
+        "GITHUB_TOKEN"
+      ],
+      "preview": true,
+      "receipt_required": true,
+      "input_schema": {
+        "owner": {
+          "type": "string",
+          "required": false
+        },
+        "repo": {
+          "type": "string",
+          "required": false
+        },
+        "branch": {
+          "type": "string",
+          "required": true
+        },
+        "protection": {
+          "type": "object",
+          "required": true
+        }
+      },
+      "output_schema": {
+        "branch": "string",
+        "protection": "object",
+        "http_status": "number",
+        "rate_limit": "object"
+      }
+    },
+    {
+      "id": "github.merge_pull_request",
+      "title": "Merge a pull request after high-risk approval",
+      "provider": "github",
+      "risk": "high",
+      "mode": "write_requires_approval",
+      "requires": [
+        "GITHUB_TOKEN"
+      ],
+      "preview": true,
+      "receipt_required": true,
+      "input_schema": {
+        "owner": {
+          "type": "string",
+          "required": false
+        },
+        "repo": {
+          "type": "string",
+          "required": false
+        },
+        "pull_number": {
+          "type": "number",
+          "required": true
+        },
+        "merge_method": {
+          "type": "string",
+          "required": false
+        },
+        "sha": {
+          "type": "string",
+          "required": false
+        },
+        "commit_title": {
+          "type": "string",
+          "required": false
+        },
+        "commit_message": {
+          "type": "string",
+          "required": false
+        }
+      },
+      "output_schema": {
+        "merged": "boolean",
+        "sha": "string",
+        "message": "string",
+        "http_status": "number",
+        "rate_limit": "object"
+      }
+    },
+    {
+      "id": "github.create_pull_request_review",
+      "title": "Approve, comment, or request changes after approval",
+      "provider": "github",
+      "risk": "medium",
+      "mode": "write_requires_approval",
+      "requires": [
+        "GITHUB_TOKEN"
+      ],
+      "preview": true,
+      "receipt_required": true,
+      "input_schema": {
+        "owner": {
+          "type": "string",
+          "required": false
+        },
+        "repo": {
+          "type": "string",
+          "required": false
+        },
+        "pull_number": {
+          "type": "number",
+          "required": true
+        },
+        "event": {
+          "type": "string",
+          "required": true
+        },
+        "body": {
+          "type": "string",
+          "required": false
+        },
+        "commit_id": {
+          "type": "string",
+          "required": false
+        }
+      },
+      "output_schema": {
+        "review": "object",
+        "http_status": "number",
+        "rate_limit": "object"
+      }
+    },
+    {
+      "id": "github.list_deployments",
+      "title": "List repository deployments",
+      "provider": "github",
+      "risk": "low",
+      "mode": "read",
+      "requires": [],
+      "preview": true,
+      "receipt_required": true,
+      "input_schema": {
+        "owner": {
+          "type": "string",
+          "required": false
+        },
+        "repo": {
+          "type": "string",
+          "required": false
+        },
+        "ref": {
+          "type": "string",
+          "required": false
+        },
+        "environment": {
+          "type": "string",
+          "required": false
+        },
+        "limit": {
+          "type": "number",
+          "required": false
+        }
+      },
+      "output_schema": {
+        "deployments": "array",
+        "count": "number",
+        "rate_limit": "object"
+      }
+    },
+    {
+      "id": "github.create_deployment",
+      "title": "Create a deployment record after approval",
+      "provider": "github",
+      "risk": "medium",
+      "mode": "write_requires_approval",
+      "requires": [
+        "GITHUB_TOKEN"
+      ],
+      "preview": true,
+      "receipt_required": true,
+      "input_schema": {
+        "owner": {
+          "type": "string",
+          "required": false
+        },
+        "repo": {
+          "type": "string",
+          "required": false
+        },
+        "ref": {
+          "type": "string",
+          "required": true
+        },
+        "environment": {
+          "type": "string",
+          "required": false
+        },
+        "description": {
+          "type": "string",
+          "required": false
+        },
+        "payload": {
+          "type": "object",
+          "required": false
+        },
+        "required_contexts": {
+          "type": "array",
+          "required": false
+        },
+        "auto_merge": {
+          "type": "boolean",
+          "required": false
+        },
+        "transient_environment": {
+          "type": "boolean",
+          "required": false
+        },
+        "production_environment": {
+          "type": "boolean",
+          "required": false
+        }
+      },
+      "output_schema": {
+        "deployment": "object",
+        "http_status": "number",
+        "rate_limit": "object"
+      }
+    },
+    {
+      "id": "github.create_deployment_status",
+      "title": "Record a deployment status after approval",
+      "provider": "github",
+      "risk": "medium",
+      "mode": "write_requires_approval",
+      "requires": [
+        "GITHUB_TOKEN"
+      ],
+      "preview": true,
+      "receipt_required": true,
+      "input_schema": {
+        "owner": {
+          "type": "string",
+          "required": false
+        },
+        "repo": {
+          "type": "string",
+          "required": false
+        },
+        "deployment_id": {
+          "type": "number",
+          "required": true
+        },
+        "state": {
+          "type": "string",
+          "required": true
+        },
+        "description": {
+          "type": "string",
+          "required": false
+        },
+        "environment": {
+          "type": "string",
+          "required": false
+        },
+        "log_url": {
+          "type": "string",
+          "required": false
+        },
+        "environment_url": {
+          "type": "string",
+          "required": false
+        },
+        "auto_inactive": {
+          "type": "boolean",
+          "required": false
+        }
+      },
+      "output_schema": {
+        "deployment_status": "object",
+        "http_status": "number",
+        "rate_limit": "object"
+      }
+    }
+  ],
+  "publisher_pubkey": "94bac84e5024e635f0e96ebcb9d92e34a9f216e3ecba8b66fd8293a716b67cc0"
+}
